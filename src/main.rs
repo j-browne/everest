@@ -1,32 +1,44 @@
 use everest::{evaluate, parse};
-use std::io::stdin;
+use rustyline::{error::ReadlineError, history::MemHistory, Config, Editor};
 
 fn main() {
-    for line in stdin().lines() {
-        let line = line.unwrap_or_else(|e| {
-            panic!("IO Error: {e}");
-        });
+    let mut rl: Editor<(), MemHistory> =
+        Editor::with_history(Config::default(), MemHistory::new()).unwrap();
 
-        if line.is_empty() {
-            continue;
-        }
+    loop {
+        match rl.readline("") {
+            Ok(line) => {
+                if line.is_empty() {
+                    continue;
+                }
 
-        let (input, parsed_line) = match parse(&line) {
-            Ok((input, parsed_line)) => (input, parsed_line),
-            Err(e) => {
-                println!("  ERROR: {e}");
+                let _ = rl.add_history_entry(line.clone());
+
+                let (input, parsed_line) = match parse(&line) {
+                    Ok((input, parsed_line)) => (input, parsed_line),
+                    Err(e) => {
+                        println!("  ERROR: {e}");
+                        continue;
+                    }
+                };
+
+                if !input.is_empty() {
+                    println!("  WARNING: input remaining {input:?}");
+                }
+
+                match evaluate(parsed_line) {
+                    Ok(result) => println!("{result}"),
+                    Err(e) => println!("  ERROR: {e}"),
+                }
+
                 continue;
             }
-        };
-
-        if !input.is_empty() {
-            println!("  WARNING: input remaining {input:?}");
-        }
-
-        let result = evaluate(parsed_line);
-        match result {
-            Ok(result) => println!("{result}"),
-            Err(e) => println!("  ERROR: {e}"),
+            Err(ReadlineError::Eof) => break,
+            Err(ReadlineError::Interrupted) => continue,
+            Err(e) => {
+                println!("Readline Error: {e}");
+                break;
+            }
         }
     }
 }
